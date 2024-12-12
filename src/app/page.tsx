@@ -17,6 +17,18 @@ export default function Home() {
   const handleSend = async () => {
     if (!message.trim()) return;
 
+    //Validation of URL provided
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    if (!message.match(urlRegex)) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "ai",
+          content: "Please include a valid url",
+        },
+      ]);
+    }
+
     // Add user message to the conversation
     const userMessage = { role: "user" as const, content: message };
     setMessages(prev => [...prev, userMessage]);
@@ -29,21 +41,42 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ query: message }),
       });
 
       // TODO: Handle the response from the chat API to display the AI response in the UI
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log("Error:", errorData.error || "Unexpected error");
+        setMessages(prev => [
+          ...prev,
+          {
+            role: "ai",
+            content: "Oops! Something went wrong, Please try again",
+          },
+        ]);
+        return;
+      }
 
+      const data = await response.json();
 
-
-
+      //Add ai's response to conversation
+      const aiMessage = {
+        role: "ai" as const,
+        content: data.answer || "Coudn't get find de answer",
+      };
+      setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("Error:", error);
+
+      setMessages(prev => [
+        ...prev,
+        { role: "ai", content: "An error ocurred, please try again" },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
-
 
   // TODO: Modify the color schemes, fonts, and UI as needed for a good user experience
   // Refer to the Tailwind CSS docs here: https://tailwindcss.com/docs/customizing-colors, and here: https://tailwindcss.com/docs/hover-focus-and-other-states

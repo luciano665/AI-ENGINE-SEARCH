@@ -7,16 +7,17 @@ import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
+import { headers } from 'next/headers';
 
 
 interface ChatRequestBody {
+  //Query is only a string provided to the model
   query: string;
-  urls: string[];
 }
 
 //Redis init 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL_!,
+  url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 })
 
@@ -46,40 +47,64 @@ async function scrapeURL(url: string): Promise<string> {
   $('script, style, noscript').remove();
    // Extract and return the text content form body
   return $('body').text();
+}
 
-
+//Function to extract URL from query
+function extractFromQuery(query: string): string | null {
+  const urlRegex = /(https?:\/\/[^\s]+)/g; //Regex for getting the url
+  const matches = query.match(urlRegex);
+  return matches ? matches[0] : null;
 }
 
 //Handles the incoming requests, scrapes URLs queries to LLM and returns the response.
 export async function POST(req: Request) {
   try {
     // Parse the request bodyy as the ChatrequestBody
-    const {query, urls} = await req.json() as ChatRequestBody;
+    const {query} = await (req.json()) as ChatRequestBody;
     // Validate that query and the urls are provided and urls is not empty  (for now later provide response based on LLM only)
-    if (!query || !Array.isArray(urls) || urls.length === 0) {
+
+    if (!query) { //TODO UPDATE LINE FOR LOGIC
+
       // If invalid
-      return new Response(JSON.stringify({error: 'Invalid input.'}), {status: 400});
+      return new Response(JSON.stringify({error: 'Invalid input.'}), {status: 400, headers: {"Content-Type": "application/json"}});
+    }
+
+    //Extract URL
+    const url = extractFromQuery(query);
+    
+    //Call back if url is not provided
+    if(!url){
+      return new Response(
+        JSON.stringify({
+          error: "No valid URL found on your request. Please include a valid URL or make sure to copy the complete URL.", 
+        }),
+        {status: 400, headers: {"Content-Type": "application/json"}}
+      );
     }
 
     //Generate unique cache key based on query and the URLs
-    const cacheKey = `chat:${query}:${urls.join('|')}`;
+    const cacheKey = `chat:${url}`;
     // Check Redis to see if a cached result is already available
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      //If cached data is found, return it inmediatly
-      return new Response(JSON.stringify(cached), {status: 200});
+    const cachedResult = await redis.get(cacheKey)
+    if (cachedResult) {
+      //If cached data is found, return it immediately
+      return new Response(JSON.stringify(cachedResult), {
+        status: 200,
+        headers: {"Content-Type": "application/json"}
+      });
     }
 
     //Scrape content of each ULR in parallel by calling the function of scrapping above
-    const scrapedContents = await Promise.all(urls.map((u) => scrapeURL(u)))
-    // Contruct a prompt for the LLM by labeling each source with an index
-    const systemPrompt = scrapedContents.map((c, i) => `Source [${i + 1}]:\n${c}`).join('\n\n');
+    const scrapedContents = await scrapeURL(url)
+    // Contruct a prompt for the LLM by labeling each source with an index 
+    //TODO LATER the LLM labeling caching
+    //const systemPrompt = scrapedContents.map((c, i) => `Source [${i + 1}]:\n${c}`).join('\n\n');
     //Create message array for the LLM, including instructions and the user's query
+    const systemPrompt = "You are helpful assistant that responds to user queries using reals sources and actual up to date. Use this sources to answer the user's query and always cite relevant sources in your responses when needed. If unsure, use your knowledge you have if currently stating date of teh knowledge."
     const messages = [
       {
         role: 'system',
-        content: `You are helpful assistant that responds to user queries using reals sources and actual up to date. Use this sources to answer the user's query and always cite relevant sources in your responses when needed.
-        If unsure, use your knowledge .\n\n${systemPrompt}`
+        content: systemPrompt,
       },
       {role: 'user', content: query}
     ];
@@ -93,15 +118,15 @@ export async function POST(req: Request) {
      //Extract the answer from completion response, empty string if it missing
      const answer = completion.choices?.[0]?.message?.content || 'No response';
      //Construct the final result obj including url as sources
-     const result = {answer, sources: urls};
+     const result = {answer, sources: url};
 
      //Store result in redis with  TTL(time to live) for 24 hours
-     await redis.set(cacheKey, result, {ex: 3600});
+     await redis.set(cacheKey, JSON.stringify(result), {ex: 3600});
 
      //Return result 200 if OK
-     return new Response(JSON.stringify(result), {status: 200});
+     return new Response(JSON.stringify(result), {status: 200, headers: {"Content-Type": "application/json"}});
 
   } catch (error: any) {
-    return new Response(JSON.stringify({error: error.message}), {status:500});
+    return new Response(JSON.stringify({error: error.message}), {status:500, headers:{"Content-Type":"application/json"}});
   }
 }
