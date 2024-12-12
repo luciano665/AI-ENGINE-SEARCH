@@ -7,7 +7,7 @@ import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
-import { headers } from 'next/headers';
+
 
 
 interface ChatRequestBody {
