@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Header from "@/components/header";
+import { ArrowUp } from "lucide-react";
 
 type Message = {
   role: "user" | "ai";
@@ -10,7 +12,7 @@ type Message = {
 export default function Home() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([
-    { role: "ai", content: "Hello! How can I help you today?" },
+    { role: "ai", content: "Hello! How can I help you today? 🚀" },
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -78,16 +80,28 @@ export default function Home() {
     }
   };
 
+  //Hanlde share
+  const handleShare = () => {
+    const chatContent = messages
+      .map(msg => `[${msg.role}]: ${msg.content}`)
+      .join("\n");
+    navigator.clipboard
+      .writeText(chatContent)
+      .then(() => alert("Chat content copied to clipboard!"))
+      .catch(() => alert("Failed to copy chat content"));
+  };
+
   // TODO: Modify the color schemes, fonts, and UI as needed for a good user experience
   // Refer to the Tailwind CSS docs here: https://tailwindcss.com/docs/customizing-colors, and here: https://tailwindcss.com/docs/hover-focus-and-other-states
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
+    <div className="flex flex-col h-screen bg-white">
       {/* Header */}
-      <div className="w-full bg-gray-800 border-b border-gray-700 p-4">
+      {/*<div className="w-full bg-black border-b border-gray-700 p-4">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-xl font-semibold text-white">Chat</h1>
         </div>
-      </div>
+      </div> */}
+      <Header onShare={handleShare} />
 
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto pb-32 pt-4">
@@ -104,8 +118,8 @@ export default function Home() {
               <div
                 className={`px-4 py-2 rounded-2xl max-w-[80%] ${
                   msg.role === "ai"
-                    ? "bg-gray-800 border border-gray-700 text-gray-100"
-                    : "bg-cyan-600 text-white ml-auto"
+                    ? "bg-black border border-gray-700 text-gray-100"
+                    : "bg-gray-500 text-white ml-auto"
                 }`}
               >
                 {msg.content}
@@ -136,7 +150,7 @@ export default function Home() {
       </div>
 
       {/* Input Area */}
-      <div className="fixed bottom-0 w-full bg-gray-800 border-t border-gray-700 p-4">
+      <div className="fixed bottom-0 w-full bg-black border-t border-gray-700 p-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex gap-3 items-center">
             <input
@@ -145,14 +159,15 @@ export default function Home() {
               onChange={e => setMessage(e.target.value)}
               onKeyPress={e => e.key === "Enter" && handleSend()}
               placeholder="Type your message..."
-              className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400"
+              className="flex-1 rounded-xl border border-gray-700 bg-gray-700 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent placeholder-gray-400"
             />
             <button
               onClick={handleSend}
               disabled={isLoading}
-              className="bg-cyan-600 text-white px-5 py-3 rounded-xl hover:bg-cyan-700 transition-all disabled:bg-cyan-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gray-700 text-white px-5 py-3 rounded-full hover:bg-gray-500 transition-all disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Sending..." : "Send"}
+              {isLoading ? "..." : ""}
+              <ArrowUp />
             </button>
           </div>
         </div>
