@@ -3,7 +3,12 @@
 import { useState } from "react";
 import Header from "@/components/header";
 import { ArrowUp } from "lucide-react";
-
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { dark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 type Message = {
   role: "user" | "ai";
   content: string;
@@ -19,6 +24,9 @@ export default function Home() {
   const handleSend = async () => {
     if (!message.trim()) return;
 
+    //URL VALIDATION REMOVED
+    {
+      /*
     //Validation of URL provided
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     if (!message.match(urlRegex)) {
@@ -29,6 +37,9 @@ export default function Home() {
           content: "Please include a valid url",
         },
       ]);
+      setMessage("");
+      return;
+    } */
     }
 
     // Add user message to the conversation
@@ -122,7 +133,39 @@ export default function Home() {
                     : "bg-gray-500 text-white ml-auto"
                 }`}
               >
-                {msg.content}
+                {msg.role === "ai" ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                    components={{
+                      //Codo blocks with syntax highlighting
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={dark}
+                            language={match[1]}
+                            PreTag="div"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                      //custom heading levels if needed
+                      h1: ({ node, ...props }) => <h2 {...props} />,
+                      h2: ({ node, ...props }) => <h3 {...props} />,
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))}

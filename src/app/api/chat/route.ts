@@ -116,6 +116,7 @@ export async function POST(req: Request) {
     //Extract URL
     const url = extractFromQuery(query);
     
+    {/*}
     //Call back if url is not provided
     if(!url){
       return new Response(
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
         }),
         {status: 400, headers: {"Content-Type": "application/json"}}
       );
-    }
+    } */}
 
     //Generate unique cache key based on query and the URLs
     const cacheKey = `chat:${url}`;
@@ -139,7 +140,13 @@ export async function POST(req: Request) {
     }
 
     //Scrape content of each ULR in parallel by calling the function of scrapping above
-    const scrapedContents = await scrapeURL(url)
+    let scrapedContents = ''
+    let sources = ''
+    if(url){
+      scrapedContents = await scrapeURL(url);
+      sources = url
+    }
+    
     const currentDate = new Date().toISOString();
     const systemPrompt = systemPrompt_prev
       .replace('{context}', scrapedContents)
@@ -159,7 +166,7 @@ export async function POST(req: Request) {
 
      //Send the prompt to the LLM via GROQ 
      const completion = await Client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: messages as any,
      });
 
