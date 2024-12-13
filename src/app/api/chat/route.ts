@@ -3,8 +3,7 @@
 // Refer to the Groq SDK here on how to use an LLM: https://www.npmjs.com/package/groq-sdk
 // Refer to the Cheerio docs here on how to parse HTML: https://cheerio.js.org/docs/basics/loading
 // Refer to Puppeteer docs here: https://pptr.dev/guides/what-is-puppeteer
-import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
+import { scrapeURL } from '../utils/scraper';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
 
@@ -70,28 +69,7 @@ const Client = new Groq({
   apiKey: process.env['GROQ_API_KEY'],
 });
 
-/**
- * Scrapping URL's content using Puppeter & Cheerio
- */
-async function scrapeURL(url: string): Promise<string> {
-  // Launch a new headless browser instance 
-  const browser = await puppeteer.launch({headless: true});
-  // Open a new browser page
-  const page = await browser.newPage();
-  // Navigate to thespecified URL and wait until network is idle
-  await page.goto(url, {waitUntil: 'networkidle2'});
-  // Get full HTML page
-  const html = await page.content();
-  
-  await browser.close();
 
-  // Load HTML into cheerio for parsing and querying
-  const $ = cheerio.load(html);
-   // Removing unwanted elements
-  $('script, style, noscript').remove();
-   // Extract and return the text content form body
-  return $('body').text();
-}
 
 //Function to extract URL from query
 function extractFromQuery(query: string): string | null {
@@ -116,16 +94,6 @@ export async function POST(req: Request) {
     //Extract URL
     const url = extractFromQuery(query);
     
-    {/*}
-    //Call back if url is not provided
-    if(!url){
-      return new Response(
-        JSON.stringify({
-          error: "No valid URL found on your request. Please include a valid URL or make sure to copy the complete URL.", 
-        }),
-        {status: 400, headers: {"Content-Type": "application/json"}}
-      );
-    } */}
 
     //Generate unique cache key based on query and the URLs
     const cacheKey = `chat:${url}`;
@@ -146,7 +114,7 @@ export async function POST(req: Request) {
       scrapedContents = await scrapeURL(url);
       sources = url
     }
-    
+
     const currentDate = new Date().toISOString();
     const systemPrompt = systemPrompt_prev
       .replace('{context}', scrapedContents)
@@ -173,7 +141,7 @@ export async function POST(req: Request) {
      //Extract the answer from completion response, empty string if it missing
      const answer = completion.choices?.[0]?.message?.content || 'No response';
      //Construct the final result obj including url as sources
-     const result = {answer, sources: url};
+     const result = {answer, sources: sources};
 
      //Store result in redis with  TTL(time to live) for 24 hours
      await redis.set(cacheKey, JSON.stringify(result), {ex: 3600});

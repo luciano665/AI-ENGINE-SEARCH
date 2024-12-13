@@ -1,4 +1,4 @@
-import { Share, Edit, Trash } from "lucide-react";
+import { Share } from "lucide-react";
 
 type HeaderProps = {
   onShare: () => void;
