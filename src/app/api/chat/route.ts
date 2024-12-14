@@ -170,7 +170,7 @@ export async function POST(req: Request) {
      //Construct the final result obj including url as sources
      const result: ChatResponse = {
       answer, 
-      sources: url ? url: "No external sources used answer based in pre-trained knoledge",
+      sources: sources ||  "No external sources used answer based in pre-trained knoledge",
     };
 
      //Store result in redis with  TTL(time to live) for 24 hours
