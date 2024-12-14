@@ -6,6 +6,7 @@
 import { scrapeURL } from '../utils/scraper';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
+import crypto from 'crypto';
 
 //Syestemp prompt:
 const systemPrompt_prev = `
@@ -51,7 +52,8 @@ const systemPrompt_prev = `
 
     Current date & time in ISO format (UTC timezone) is: {date}.
   Special intructions:
-   - If the query does not have a relevant context use your available knowledge you already know. To respons to the questions. 
+   - Special instructions:
+- If the query does not have a relevant context, use your available knowledge you already know to respond to the questions.
 `;
 
 //INTERFACER
@@ -90,14 +92,19 @@ function extractFromQuery(query: string): string | null {
   return matches ? matches[0] : null;
 }
 
+//Hashed query
+function hashQuery(query: string): string{
+  return crypto.createHash('sha256').update(query).digest('hex');
+}
+
 //Handles the incoming requests, scrapes URLs queries to LLM and returns the response.
 export async function POST(req: Request) {
   try {
     // Parse the request bodyy as the ChatrequestBody
-    const {query} = await (req.json()) as ChatRequestBody;
+    const {query } = await (req.json()) as ChatRequestBody;
     // Validate that query and the urls are provided and urls is not empty  (for now later provide response based on LLM only)
 
-    if (!query) { //TODO UPDATE LINE FOR LOGIC
+    if (!query) { 
 
       // If invalid
       return new Response(JSON.stringify({error: 'Invalid input.'}), {status: 400, headers: {"Content-Type": "application/json"}});
@@ -105,10 +112,18 @@ export async function POST(req: Request) {
 
     //Extract URL
     const url = extractFromQuery(query);
-    
+    // Determine cache key based on presence of URL
+    let cacheKey: string;
+    if(url) {
+      cacheKey = `chat:query:${url}`;
+    } else {
+      //For queris withour urls we apply hashing for cache key
+      const hashedQuery =  hashQuery(query);
+      cacheKey = `chat:query:${hashedQuery}`;
+    }
 
     //Generate unique cache key based on query and the URLs
-    const cacheKey = `chat:${url}`;
+    //const cacheKey = `chat:${url}`;
     // Check Redis to see if a cached result is already available
     const cachedResult = await redis.get(cacheKey)
     if (cachedResult) {
@@ -153,7 +168,10 @@ export async function POST(req: Request) {
      //Extract the answer from completion response, empty string if it missing
      const answer = completion.choices?.[0]?.message?.content || 'No response';
      //Construct the final result obj including url as sources
-     const result: ChatResponse = {answer, sources};
+     const result: ChatResponse = {
+      answer, 
+      sources: url ? url: "No external sources used answer based in pre-trained knoledge",
+    };
 
      //Store result in redis with  TTL(time to live) for 24 hours
      await redis.set(cacheKey, JSON.stringify(result), {ex: 3600});

@@ -34,8 +34,8 @@ export default function MessagesContainer({
           <div
             className={`px-4 py-2 rounded-2xl max-w-[80%] ${
               msg.role === "ai"
-                ? "bg-black border border-gray-700 text-gray-100"
-                : "bg-gray-500 text-white ml-auto"
+                ? "bg-gray-600 border border-gray-700 text-gray-100"
+                : "bg-gray-400 text-white ml-auto"
             }`}
           >
             {msg.role === "ai" ? (
