@@ -44,7 +44,7 @@ export default function MessagesContainer({
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
                   // Code blocks with syntax highlighting
-                  code({ node, inline, className, children, ...props }) {
+                  code({ inline, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || "");
                     return !inline && match ? (
                       <SyntaxHighlighter
@@ -62,8 +62,8 @@ export default function MessagesContainer({
                     );
                   },
                   // Custom heading levels if needed
-                  h1: ({ node, ...props }) => <h2 {...props} />,
-                  h2: ({ node, ...props }) => <h3 {...props} />,
+                  h1: ({ ...props }) => <h2 {...props} />,
+                  h2: ({ ...props }) => <h3 {...props} />,
                 }}
               >
                 {msg.content}

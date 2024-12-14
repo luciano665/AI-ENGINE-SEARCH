@@ -50,12 +50,24 @@ const systemPrompt_prev = `
     </context>
 
     Current date & time in ISO format (UTC timezone) is: {date}.
+  Special intructions:
+   - If the query does not have a relevant context use your available knowledge you already know. To respons to the questions. 
 `;
 
+//INTERFACER
+interface ChatMessage{
+  role: 'system' | 'user',
+  content: string
+}
 
 interface ChatRequestBody {
   //Query is only a string provided to the model
   query: string;
+}
+
+interface ChatResponse {
+  answer: string,
+  sources: string,
 }
 
 //Redis init 
@@ -124,7 +136,7 @@ export async function POST(req: Request) {
     //const systemPrompt = scrapedContents.map((c, i) => `Source [${i + 1}]:\n${c}`).join('\n\n');
     //Create message array for the LLM, including instructions and the user's query
     
-    const messages = [
+    const messages: ChatMessage[] = [
       {
         role: 'system',
         content: systemPrompt,
@@ -135,13 +147,13 @@ export async function POST(req: Request) {
      //Send the prompt to the LLM via GROQ 
      const completion = await Client.chat.completions.create({
       model: 'llama-3.1-8b-instant',
-      messages: messages as any,
+      messages,
      });
 
      //Extract the answer from completion response, empty string if it missing
      const answer = completion.choices?.[0]?.message?.content || 'No response';
      //Construct the final result obj including url as sources
-     const result = {answer, sources: sources};
+     const result: ChatResponse = {answer, sources};
 
      //Store result in redis with  TTL(time to live) for 24 hours
      await redis.set(cacheKey, JSON.stringify(result), {ex: 3600});
@@ -149,7 +161,31 @@ export async function POST(req: Request) {
      //Return result 200 if OK
      return new Response(JSON.stringify(result), {status: 200, headers: {"Content-Type": "application/json"}});
 
-  } catch (error: any) {
-    return new Response(JSON.stringify({error: error.message}), {status:500, headers:{"Content-Type":"application/json"}});
+  } 
+  
+  //Helper:
+
+
+  catch (error: unknown) {
+    const errorFunc = function getErrorMessage(error: unknown): string {
+      if (error instanceof Error) {
+        return error.message;
+      } else if (typeof error === 'string') {
+        return error;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        const errorObj = error as { message: unknown };
+        if (typeof errorObj.message === 'string') {
+          return errorObj.message;
+        }
+      }
+      return 'An unexpected error occurred.';
+    }
+
+    const errorMessage = errorFunc(error);
+    console.error("An error occurred in the POST handler:", error);
+    return new Response(JSON.stringify({ error: errorMessage }), { 
+      status: 500, 
+      headers: { "Content-Type": "application/json" } 
+    });
   }
 }

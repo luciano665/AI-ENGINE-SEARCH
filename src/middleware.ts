@@ -4,7 +4,6 @@
 
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-import {headers} from 'next/headers';
 import {Ratelimit} from "@upstash/ratelimit";
 import {Redis} from "@upstash/redis";
 
@@ -19,12 +18,11 @@ export async function middleware(request: NextRequest) {
   try {
 
     //We need a client identifier in order have an account of limits per user
-    const headerList = headers();
-    const fowardedFor = (await headerList).get('x-forwarded-for');
-    const clientIdentifer = fowardedFor ? fowardedFor.split(",")[0] : 'Unknowns';
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const clientIdentifier = forwardedFor ? forwardedFor.split(",")[0] : 'Unknowns';
 
     //check the rate limmit
-    const {success, remaining, reset} = await ratelimit.limit(clientIdentifer);
+    const {success, remaining, reset} = await ratelimit.limit(clientIdentifier);
 
     if(!success){
       //Respond with 429: to many requests -> error if exceeded rate limit
