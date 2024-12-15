@@ -3,7 +3,7 @@
 // Refer to the Groq SDK here on how to use an LLM: https://www.npmjs.com/package/groq-sdk
 // Refer to the Cheerio docs here on how to parse HTML: https://cheerio.js.org/docs/basics/loading
 // Refer to Puppeteer docs here: https://pptr.dev/guides/what-is-puppeteer
-import { scrapeURL } from '../utils/scraper';
+import { scrapeURL, ScrapedContent } from '../utils/scraper';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
 import crypto from 'crypto';
@@ -138,7 +138,17 @@ export async function POST(req: Request) {
     let scrapedContents = ''
     let sources = ''
     if(url){
-      scrapedContents = await scrapeURL(url);
+      const scrapedContent: ScrapedContent = await scrapeURL(url);
+
+      if (scrapedContent.error) {
+        return new Response(
+          JSON.stringify({ answer: "Hmm, sorry I could not find any relevant information on this topic. Would you like me to ask something else?" }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+       // Extract the 'content' field
+      scrapedContents = scrapedContent.content
       sources = url
     }
 
