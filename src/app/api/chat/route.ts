@@ -1,4 +1,4 @@
-import { scrapeURL, ScrapedContent } from '../utils/scraper';
+import { scrapeURL, ScrapedContent, scrapeAndSearch } from '../utils/scraper';
 import {Groq} from 'groq-sdk';
 import {Redis} from '@upstash/redis';
 import crypto from 'crypto';
@@ -41,14 +41,12 @@ const systemPrompt_prev = `
     - Provide explanations or historical context as needed to enhance understanding.
     - End with a conclusion or overall perspective if relevant.
 
+    
     <context>
     {context}
     </context>
 
     Current date & time in ISO format (UTC timezone) is: {date}.
-  Special intructions:
-   - Special instructions:
-- If the query does not have a relevant context, use your available knowledge you already know to respond to the questions.
 `;
 
 //INTERFACER
@@ -120,7 +118,7 @@ export async function POST(req: Request) {
     //Generate unique cache key based on query and the URLs
     //const cacheKey = `chat:${url}`;
     // Check Redis to see if a cached result is already available
-    const cachedResult = await redis.get(cacheKey)
+    const cachedResult = await redis.get<ChatRequestBody>(cacheKey)
     if (cachedResult) {
       //If cached data is found, return it immediately
       return new Response(JSON.stringify(cachedResult), {
@@ -133,18 +131,22 @@ export async function POST(req: Request) {
     let scrapedContents = ''
     let sources = ''
     if(url){
-      const scrapedContent: ScrapedContent = await scrapeURL(url);
+      const scrapedContent_result: ScrapedContent = await scrapeURL(url);
 
-      if (scrapedContent.error) {
+      if (scrapedContent_result.error) {
         return new Response(
           JSON.stringify({ answer: "Hmm, sorry I could not find any relevant information on this topic. Would you like me to ask something else?" }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
       }
-
-       // Extract the 'content' field
-      scrapedContents = scrapedContent.content
+      // Extract the 'content' field
+      scrapedContents = scrapedContent_result.content
       sources = url
+    } 
+    else{
+      const scrapedContent_search: ScrapedContent = await scrapeAndSearch(query);
+      scrapedContents = scrapedContent_search.content
+      sources = scrapedContent_search.url;
     }
 
     const currentDate = new Date().toISOString();
@@ -179,16 +181,12 @@ export async function POST(req: Request) {
     };
 
      //Store result in redis with  TTL(time to live) for 24 hours
-     await redis.set(cacheKey, JSON.stringify(result), {ex: 3600});
+     await redis.set(cacheKey, JSON.stringify(result), {ex: 86400});
 
      //Return result 200 if OK
      return new Response(JSON.stringify(result), {status: 200, headers: {"Content-Type": "application/json"}});
 
   } 
-  
-  //Helper:
-
-
   catch (error: unknown) {
     const errorFunc = function getErrorMessage(error: unknown): string {
       if (error instanceof Error) {
